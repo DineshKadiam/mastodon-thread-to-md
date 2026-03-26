@@ -53,7 +53,12 @@ impl MastodonToBlogpost {
     async fn convert_thread(&self, toot: &Url) -> anyhow::Result<Blogpost> {
         let mut markdown = String::new();
 
-        let id = toot.path_segments().unwrap().last().unwrap().to_string();
+        let id = toot
+            .path_segments()
+            .unwrap()
+            .next_back()
+            .unwrap()
+            .to_string();
         let status = self.client.get_status(id.clone()).await?.json();
 
         // Add the metadata we have.
@@ -133,7 +138,13 @@ impl MastodonToBlogpost {
 }
 
 fn filename_for(url: &Url) -> PathBuf {
-    let mut filename = PathBuf::from(url.path_segments().unwrap().last().unwrap().to_string());
+    let mut filename = PathBuf::from(
+        url.path_segments()
+            .unwrap()
+            .next_back()
+            .unwrap()
+            .to_string(),
+    );
     let extension = filename.extension().unwrap().to_str().unwrap();
     if extension == "jpeg" {
         filename.set_extension("jpg");
