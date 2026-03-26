@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.86"
 mdka = "1.2.10"
-megalodon = "0.13.7"
+megalodon = "1.2.1"
 regex = "1.10.6"
 reqwest = { version = "0.13.0", features = ["rustls"] }
 tokio = "1.39.3"

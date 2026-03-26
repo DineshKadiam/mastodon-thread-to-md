@@ -45,7 +45,8 @@ impl MastodonToBlogpost {
             String::from(domain),
             access_token,
             None,
-        );
+        )
+        .expect("Failed to initialize Mastodon API client");
         Self { client }
     }
 
