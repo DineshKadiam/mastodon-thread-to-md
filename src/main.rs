@@ -64,8 +64,7 @@ impl MastodonToBlogpost {
         // Add the metadata we have.
         markdown += "---\n";
         markdown += "title: TODO\n";
-        markdown += "tags: \n";
-        markdown += "thumbnail: \n";
+        markdown += "tags: TODO\n";
         markdown += format!("published: {}\n", status.created_at.format("%Y-%m-%d")).as_str();
         markdown += format!("toot: {}\n", toot).as_str();
         markdown += "---\n\n";
