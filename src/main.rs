@@ -104,6 +104,11 @@ impl MastodonToBlogpost {
         // Remove empty lines at the end of the file.
         markdown = markdown.trim_end().to_string() + "\n";
 
+        // Add reference to the source toot.
+        markdown +=
+            format!("\n---\n\nThis post has been adapted from [this Mastodon thread]({toot}).\n")
+                .as_str();
+
         Ok(Blogpost { markdown, files })
     }
 
