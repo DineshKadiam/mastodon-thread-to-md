@@ -113,6 +113,10 @@ impl MastodonToBlogpost {
         // Fix spaces after @ characters.
         markdown = markdown.replace("[@ ", "[@");
 
+        // Remove links to hashtags.
+        let re = regex::Regex::new(r"\[# (.*?)\]\(.*?\)").unwrap();
+        markdown = re.replace_all(&markdown, "#$1").to_string();
+
         let mut files = vec![];
         for attachment in &status.media_attachments {
             let filename = filename_for(&Url::parse(&attachment.url)?);
