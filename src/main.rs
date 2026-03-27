@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 blinry <mail@blinry.org>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use megalodon::entities::status::Status;
 use std::path::PathBuf;
 use url::Url;
