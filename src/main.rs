@@ -120,19 +120,29 @@ impl MastodonToBlogpost {
         let mut files = vec![];
         for attachment in &status.media_attachments {
             let filename = filename_for(&Url::parse(&attachment.url)?);
-            let description = attachment.description.clone().map(|d| d.replace("\n", ""));
 
-            let alt_text = if let Some(ref description) = description {
-                format!(" \"{}\"", description)
+            let description = attachment
+                .description
+                .clone()
+                .map(|d| d.replace("\n", "").replace("_", "\\_").replace("$", "\\$"));
+            let description = description.unwrap_or("".to_string());
+
+            let alt_text = format!(" \"{}\"", description.replace("\"", "&quot;"));
+
+            if filename.to_str().unwrap().ends_with(".mp4") {
+                markdown += &format!(
+                    "\n\n<video src=\"{0}\" controls aria-label=\"{1}\"></video>",
+                    filename.to_str().unwrap(),
+                    description,
+                );
             } else {
-                "".to_string()
-            };
-            markdown += &format!(
-                "\n\n![{0}]({1}{2})",
-                description.unwrap_or("".to_string()),
-                filename.to_str().unwrap(),
-                alt_text,
-            );
+                markdown += &format!(
+                    "\n\n![{0}]({1}{2})",
+                    description,
+                    filename.to_str().unwrap(),
+                    alt_text,
+                );
+            }
 
             files.push((Url::parse(&attachment.url)?, filename));
         }
