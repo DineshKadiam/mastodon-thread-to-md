@@ -121,13 +121,17 @@ impl MastodonToBlogpost {
         for attachment in &status.media_attachments {
             let filename = filename_for(&Url::parse(&attachment.url)?);
 
-            let description = attachment
-                .description
-                .clone()
-                .map(|d| d.replace("\n", "").replace("_", "\\_").replace("$", "\\$"));
+            let description = attachment.description.clone().map(|d| {
+                d.replace("\n", "")
+                    .replace("\"", "&quot;") // This text will end up in contexts where it will be quoted with ".
+                    .replace("_", "&lowbar;") // Avoid markdown parsers picking up the _ pair in ![_](img.png "_").
+            });
             let description = description.unwrap_or("".to_string());
 
-            let alt_text = format!(" \"{}\"", description.replace("\"", "&quot;"));
+            let alt_text = format!(" \"{}\"", description);
+
+            // Avoid markdown parsers picking up a formula in ![$$](img.png "$$").
+            let description = description.replace("$$", "\\$$");
 
             if filename.to_str().unwrap().ends_with(".mp4") {
                 markdown += &format!(
