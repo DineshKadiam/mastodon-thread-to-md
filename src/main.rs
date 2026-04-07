@@ -134,20 +134,33 @@ async fn convert_toot(status: &Status) -> anyhow::Result<Blogpost> {
                 .replace("\"", "&quot;") // This text will end up in contexts where it will be quoted with ".
                 .replace("_", "&lowbar;") // Avoid markdown parsers picking up the _ pair in ![_](img.png "_").
         });
-        let description = description.unwrap_or("".to_string());
-
-        let alt_text = format!(" \"{}\"", description);
+        let alt_text = description.clone();
 
         // Avoid markdown parsers picking up a formula in ![$$](img.png "$$").
-        let description = description.replace("$$", "\\$$");
+        let description = description.map(|d| d.replace("$$", "\\$$"));
 
         if filename.to_str().unwrap().ends_with(".mp4") {
+            let description = match description {
+                None => "".to_string(),
+                Some(text) => format!(" aria-label=\"{text}\""),
+            };
+
             markdown += &format!(
-                "\n\n<video src=\"{0}\" controls aria-label=\"{1}\"></video>",
+                "\n\n<video src=\"{0}\" controls{1}></video>",
                 filename.to_str().unwrap(),
                 description,
             );
         } else {
+            let description = match description {
+                None => "".to_string(),
+                Some(text) => text,
+            };
+
+            let alt_text = match alt_text {
+                None => "".to_string(),
+                Some(text) => format!(" \"{text}\""),
+            };
+
             markdown += &format!(
                 "\n\n![{0}]({1}{2})",
                 description,
