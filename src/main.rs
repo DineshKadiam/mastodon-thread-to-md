@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::{Context, Result};
+use futures::{stream, StreamExt, TryStreamExt};
 use megalodon::entities::status::Status;
 use std::path::PathBuf;
 use url::Url;
@@ -18,14 +19,17 @@ async fn main() -> anyhow::Result<()> {
     std::fs::write("index.md", blogpost.markdown)?;
 
     // Download the files, if they don't exist yet.
-    for (url, filename) in blogpost.files {
-        if !filename.exists() {
-            println!("Downloading {:?}...", filename);
-            let response = reqwest::get(url.as_str()).await?;
-            let bytes = response.bytes().await?;
-            std::fs::write(&filename, bytes)?;
-        }
-    }
+    stream::iter(blogpost.files)
+        .map(Ok) // make it a TryStream
+        .try_for_each_concurrent(8, |(url, filename)| async move {
+            if !filename.exists() {
+                println!("Downloading {:?}...", filename);
+                let bytes = reqwest::get(url.as_str()).await?.bytes().await?;
+                std::fs::write(&filename, bytes)?;
+            }
+            Ok::<_, anyhow::Error>(())
+        })
+        .await?;
 
     Ok(())
 }
