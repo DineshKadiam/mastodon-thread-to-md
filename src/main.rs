@@ -184,7 +184,7 @@ mod mastodon {
         markdown += format!("toot: {}\n", start_toot).as_str();
         markdown += "---\n\n";
 
-        let first_toot = convert_toot(&toot).await?;
+        let first_toot: Blogpost = (&toot).try_into()?;
         markdown += &first_toot.markdown;
         let mut files = first_toot.downloads;
 
@@ -205,7 +205,7 @@ mod mastodon {
                 }
             }
 
-            let toot = convert_toot(&toot).await?;
+            let toot: Blogpost = (&toot).try_into()?;
             markdown += "\n\n---\n\n";
             markdown += &toot.markdown;
             files.extend(toot.downloads);
@@ -230,39 +230,45 @@ mod mastodon {
         })
     }
 
-    async fn convert_toot(status: &Status) -> anyhow::Result<Blogpost> {
-        let mut markdown = mdka::from_html(&status.content);
+    impl TryFrom<&Status> for Blogpost {
+        type Error = anyhow::Error;
 
-        // Fix spaces after @ characters.
-        markdown = markdown.replace("[@ ", "[@");
+        fn try_from(status: &Status) -> Result<Blogpost> {
+            let mut markdown = mdka::from_html(&status.content);
 
-        // Remove links to hashtags.
-        let re = regex::Regex::new(r"\[# (.*?)\]\(.*?\)").unwrap();
-        markdown = re.replace_all(&markdown, "#$1").to_string();
+            // Fix spaces after @ characters.
+            markdown = markdown.replace("[@ ", "[@");
 
-        let mut files = vec![];
-        for attachment in &status.media_attachments {
-            let url = Url::parse(&attachment.url)?;
-            let filename = filename_for(&url);
+            // Remove links to hashtags.
+            let re = regex::Regex::new(r"\[# (.*?)\]\(.*?\)")
+                .expect("The link-parsing regex should compile");
+            markdown = re.replace_all(&markdown, "#$1").to_string();
 
-            files.push(Download {
-                url: url.clone(),
-                filename: filename.clone(),
-            });
+            // Add attachments.
+            let mut downloads = vec![];
+            for attachment in &status.media_attachments {
+                let url = Url::parse(&attachment.url)?;
+                let filename = filename_for(&url);
 
-            let attachment = markdown::Attachment {
-                filename,
-                description: attachment.description.clone(),
-            };
+                downloads.push(Download {
+                    url,
+                    filename: filename.clone(),
+                });
 
-            markdown += "\n\n";
-            markdown += attachment.to_markdown().as_str();
+                let attachment = markdown::Attachment {
+                    filename,
+                    description: attachment.description.clone(),
+                };
+
+                markdown += "\n\n";
+                markdown += &attachment.to_markdown();
+            }
+
+            Ok(Blogpost {
+                markdown,
+                downloads,
+            })
         }
-
-        Ok(Blogpost {
-            markdown,
-            downloads: files,
-        })
     }
 
     fn filename_for(url: &Url) -> String {
