@@ -9,18 +9,21 @@ use chrono::{DateTime, Utc};
 use megalodon::entities::status::Status;
 use url::Url;
 
+/// A thread of toots, plus some metadata.
 pub struct Thread {
     pub published: DateTime<Utc>,
     pub toot_url: String,
     pub toots: Vec<Toot>,
 }
 
+/// A single toot (with attachments).
 #[derive(Clone)]
 pub struct Toot {
     pub html: String,
     pub attachments: Vec<Attachment>,
 }
 
+/// A multimedia attachment.
 #[derive(Clone)]
 pub struct Attachment {
     pub url: String,
@@ -73,7 +76,9 @@ async fn collect_thread(client: &Client, first_toot: Status) -> Result<Vec<Statu
         .get_status_context(first_toot.id.clone(), None)
         .await?
         .json();
+
     let mut toots = vec![first_toot];
+
     for toot in context.descendants {
         // Skip replies from other users.
         if toot.account != account {
@@ -94,8 +99,8 @@ async fn collect_thread(client: &Client, first_toot: Status) -> Result<Vec<Statu
 
 impl From<Status> for Toot {
     fn from(status: Status) -> Self {
-        // Add attachments.
         let mut attachments = vec![];
+
         for attachment in &status.media_attachments {
             let attachment = Attachment {
                 url: attachment.url.clone(),

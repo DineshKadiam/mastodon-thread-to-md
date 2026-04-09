@@ -9,22 +9,24 @@ use std::fmt::Write as _;
 use std::path::Path;
 use url::Url;
 
+/// Contains information on what to put in a directory to have a blog post!
 #[derive(Debug)]
 pub struct Blogpost {
     pub markdown: String,
     pub downloads: Vec<Download>,
 }
 
-// Represents a file that needs to be downloaded.
+/// Represents a file that needs to be downloaded.
 #[derive(Debug)]
 pub struct Download {
     pub url: String,
     pub filename: String,
 }
 
+/// Represents an attachment, used internally.
 struct Attachment {
-    pub filename: String,
-    pub description: Option<String>,
+    filename: String,
+    description: Option<String>,
 }
 
 impl From<mastodon::Thread> for Blogpost {
@@ -109,7 +111,7 @@ impl From<&mastodon::Toot> for Blogpost {
 }
 
 impl Attachment {
-    pub fn to_markdown(&self) -> String {
+    fn to_markdown(&self) -> String {
         let description = self.description.clone().map(|d| {
             d.replace('\n', "")
                 .replace('"', "&quot;") // This text will end up in contexts where it will be quoted with ".

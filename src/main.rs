@@ -20,9 +20,9 @@ async fn main() -> anyhow::Result<()> {
     // Write to index.md.
     std::fs::write("index.md", blogpost.markdown)?;
 
-    // Download the files, if they don't exist yet.
+    // Download the files, if they don't exist yet, in parallel.
     stream::iter(blogpost.downloads)
-        .map(Ok) // make it a TryStream
+        .map(Ok) // Convert to a TryStream.
         .try_for_each_concurrent(8, |Download { url, filename }| async move {
             if !PathBuf::from(&filename).exists() {
                 println!("Downloading {filename}...");
