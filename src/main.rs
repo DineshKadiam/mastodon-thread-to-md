@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use blogpost::File;
+use blogpost::Download;
 use futures::{stream, StreamExt, TryStreamExt};
 use url::Url;
 
@@ -19,9 +19,9 @@ async fn main() -> anyhow::Result<()> {
     std::fs::write("index.md", blogpost.markdown)?;
 
     // Download the files, if they don't exist yet.
-    stream::iter(blogpost.files)
+    stream::iter(blogpost.downloads)
         .map(Ok) // make it a TryStream
-        .try_for_each_concurrent(8, |File { url, filename }| async move {
+        .try_for_each_concurrent(8, |Download { url, filename }| async move {
             if !PathBuf::from(&filename).exists() {
                 println!("Downloading {:?}...", filename);
                 let bytes = reqwest::get(url.as_str()).await?.bytes().await?;
@@ -40,12 +40,12 @@ mod blogpost {
     #[derive(Debug)]
     pub struct Blogpost {
         pub markdown: String,
-        // URL and target filename.
-        pub files: Vec<File>,
+        pub downloads: Vec<Download>,
     }
 
+    // Represents a file that needs to be downloaded.
     #[derive(Debug)]
-    pub struct File {
+    pub struct Download {
         pub url: Url,
         pub filename: String,
     }
@@ -145,7 +145,7 @@ mod markdown {
 
 mod mastodon {
     use crate::{
-        blogpost::{Blogpost, File},
+        blogpost::{Blogpost, Download},
         markdown,
     };
     use anyhow::{Context, Result};
@@ -186,7 +186,7 @@ mod mastodon {
 
         let first_toot = convert_toot(&toot).await?;
         markdown += &first_toot.markdown;
-        let mut files = first_toot.files;
+        let mut files = first_toot.downloads;
 
         let account = toot.account;
 
@@ -208,7 +208,7 @@ mod mastodon {
             let toot = convert_toot(&toot).await?;
             markdown += "\n\n---\n\n";
             markdown += &toot.markdown;
-            files.extend(toot.files);
+            files.extend(toot.downloads);
         }
 
         // Collapse more than one empty line.
@@ -224,7 +224,10 @@ mod mastodon {
         )
         .as_str();
 
-        Ok(Blogpost { markdown, files })
+        Ok(Blogpost {
+            markdown,
+            downloads: files,
+        })
     }
 
     async fn convert_toot(status: &Status) -> anyhow::Result<Blogpost> {
@@ -242,7 +245,7 @@ mod mastodon {
             let url = Url::parse(&attachment.url)?;
             let filename = filename_for(&url);
 
-            files.push(File {
+            files.push(Download {
                 url: url.clone(),
                 filename: filename.clone(),
             });
@@ -256,7 +259,10 @@ mod mastodon {
             markdown += attachment.to_markdown().as_str();
         }
 
-        Ok(Blogpost { markdown, files })
+        Ok(Blogpost {
+            markdown,
+            downloads: files,
+        })
     }
 
     fn filename_for(url: &Url) -> String {
