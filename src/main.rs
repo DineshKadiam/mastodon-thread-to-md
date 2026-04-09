@@ -6,11 +6,10 @@ use std::path::PathBuf;
 
 use futures::{stream, StreamExt, TryStreamExt};
 use markdown::Download;
-use url::Url;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let first_toot_url = Url::parse(&std::env::args().nth(1).expect("Please provide a toot URL."))?;
+    let first_toot_url = std::env::args().nth(1).expect("Please provide a toot URL.");
     let thread = mastodon::fetch_thread(&first_toot_url).await?;
     let blogpost: markdown::Blogpost = thread.try_into()?;
 
@@ -52,7 +51,7 @@ mod markdown {
     // Represents a file that needs to be downloaded.
     #[derive(Debug)]
     pub struct Download {
-        pub url: Url,
+        pub url: String,
         pub filename: String,
     }
 
@@ -75,7 +74,7 @@ mod markdown {
                 "published".to_string(),
                 thread.published.format("%Y-%m-%d").to_string(),
             );
-            metadata.insert("toot".to_string(), thread.toot_url.to_string());
+            metadata.insert("toot".to_string(), thread.toot_url.clone());
 
             markdown += "---\n";
             for (key, value) in metadata {
@@ -186,8 +185,9 @@ mod markdown {
         }
     }
 
-    fn filename_for(url: &Url) -> String {
-        let filename = url
+    fn filename_for(url: &str) -> String {
+        let filename = Url::parse(url)
+            .expect("Url should have been valid")
             .path_segments()
             .unwrap()
             .next_back()
@@ -203,11 +203,11 @@ mod markdown {
         #[test]
         fn correct_filename() {
             assert_eq!(
-                filename_for(&Url::parse("https://example.com/image.png").unwrap()),
+                filename_for("https://example.com/image.png"),
                 "image.png".to_string()
             );
             assert_eq!(
-                filename_for(&Url::parse("https://example.com/image.jpeg").unwrap()),
+                filename_for("https://example.com/image.jpeg"),
                 "image.jpg".to_string()
             );
         }
@@ -265,7 +265,7 @@ mod mastodon {
 
     pub struct Thread {
         pub published: DateTime<Utc>,
-        pub toot_url: Url,
+        pub toot_url: String,
         pub toots: Vec<Toot>,
     }
 
@@ -277,7 +277,7 @@ mod mastodon {
 
     #[derive(Clone)]
     pub struct Attachment {
-        pub url: Url,
+        pub url: String,
         pub description: Option<String>,
     }
 
@@ -294,10 +294,11 @@ mod mastodon {
         .context("Failed to initialize Mastodon API client")
     }
 
-    pub async fn fetch_thread(first_toot_url: &Url) -> anyhow::Result<Thread> {
-        let client = init_client(&first_toot_url.origin().ascii_serialization())?;
+    pub async fn fetch_thread(first_toot_url: &str) -> anyhow::Result<Thread> {
+        let url = Url::parse(first_toot_url).expect("Urls should be valid");
+        let client = init_client(&url.origin().ascii_serialization())?;
 
-        let id = first_toot_url
+        let id = url
             .path_segments()
             .unwrap()
             .next_back()
@@ -307,16 +308,15 @@ mod mastodon {
 
         // Collect toots of thread.
         let megalodon_toots = collect_thread(&client, first_toot.clone()).await?;
-        let mut toots = vec![];
 
-        for toot in megalodon_toots {
-            let toot = (&toot).try_into()?;
-            toots.push(toot);
-        }
+        let toots: Vec<Toot> = megalodon_toots
+            .into_iter()
+            .map(std::convert::Into::into)
+            .collect();
 
         Ok(Thread {
             published: first_toot.created_at,
-            toot_url: first_toot_url.clone(),
+            toot_url: first_toot_url.to_string(),
             toots,
         })
     }
@@ -346,25 +346,23 @@ mod mastodon {
         Ok(toots)
     }
 
-    impl TryFrom<&Status> for Toot {
-        type Error = anyhow::Error;
-
-        fn try_from(status: &Status) -> Result<Self> {
+    impl From<Status> for Toot {
+        fn from(status: Status) -> Self {
             // Add attachments.
             let mut attachments = vec![];
             for attachment in &status.media_attachments {
                 let attachment = Attachment {
-                    url: Url::parse(&attachment.url)?,
+                    url: attachment.url.clone(),
                     description: attachment.description.clone(),
                 };
 
                 attachments.push(attachment);
             }
 
-            Ok(Self {
-                html: status.content.clone(),
+            Self {
+                html: status.content,
                 attachments,
-            })
+            }
         }
     }
 }
