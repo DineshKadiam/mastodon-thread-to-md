@@ -13,6 +13,7 @@ mod mastodon;
 async fn main() -> anyhow::Result<()> {
     let first_toot_url = std::env::args().nth(1).expect("Please provide a toot URL.");
     let thread = mastodon::fetch_thread(&first_toot_url).await?;
+    dbg!(&thread);
     let blogpost: markdown::Blogpost = thread.into();
 
     println!("{}", blogpost.markdown);

@@ -10,6 +10,7 @@ use megalodon::entities::status::Status;
 use url::Url;
 
 /// A thread of toots, plus some metadata.
+#[derive(Debug)]
 pub struct Thread {
     pub published: DateTime<Utc>,
     pub toot_url: String,
@@ -17,14 +18,14 @@ pub struct Thread {
 }
 
 /// A single toot (with attachments).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Toot {
     pub html: String,
     pub attachments: Vec<Attachment>,
 }
 
 /// A multimedia attachment.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Attachment {
     pub url: String,
     pub description: Option<String>,

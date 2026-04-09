@@ -73,15 +73,7 @@ impl From<mastodon::Thread> for Blogpost {
 
 impl From<&mastodon::Toot> for Blogpost {
     fn from(toot: &mastodon::Toot) -> Self {
-        let mut markdown = mdka::from_html(&toot.html);
-
-        // Fix spaces after @ characters.
-        markdown = markdown.replace("[@ ", "[@");
-
-        // Remove links to hashtags.
-        let re = regex::Regex::new(r"\[# (.*?)\]\(.*?\)")
-            .expect("The link-parsing regex should compile");
-        markdown = re.replace_all(&markdown, "#$1").to_string();
+        let mut markdown = from_html(&toot.html);
 
         // Add attachments.
         let mut downloads = vec![];
@@ -108,6 +100,38 @@ impl From<&mastodon::Toot> for Blogpost {
             downloads,
         }
     }
+}
+
+fn from_html(html: &str) -> String {
+    let mut markdown = mdka::from_html(html);
+
+    // Fix spaces after @ characters.
+    markdown = markdown.replace("[@ ", "[@");
+
+    // Fix spaces in URLs, see the "tricky_html" test.
+    let re = regex::Regex::new(r"\[http[^\]]*\]\([^)]*\)").unwrap();
+    markdown = re
+        .replace_all(&markdown, |caps: &regex::Captures| caps[0].replace(' ', ""))
+        .to_string();
+
+    // If link text == URL, use shorter syntax.
+    let re = regex::Regex::new(r"\[([^\]]*)\]\(([^)]*)\)").unwrap();
+    markdown = re
+        .replace_all(&markdown, |caps: &regex::Captures| {
+            if caps[1] == caps[2] {
+                format!("<{}>", &caps[1])
+            } else {
+                format!("[{}]({})", &caps[1], &caps[2])
+            }
+        })
+        .to_string();
+
+    // Remove links to hashtags.
+    let re =
+        regex::Regex::new(r"\[# (.*?)\]\(.*?\)").expect("The link-parsing regex should compile");
+    markdown = re.replace_all(&markdown, "#$1").to_string();
+
+    markdown
 }
 
 impl Attachment {
@@ -167,6 +191,14 @@ mod tests {
         assert_eq!(
             filename_for("https://example.com/image.jpeg"),
             "image.jpg".to_string()
+        );
+    }
+
+    #[test]
+    fn tricky_html() {
+        // Mastodon returns this HTML, and mdka seems to insert some spaces around the spans...
+        assert_eq!(from_html("<a href=\"https://www.oodihelsinki.fi/en/visit-oodi-in-vr/\" target=\"_blank\" rel=\"nofollow noopener\" translate=\"no\"><span class=\"invisible\">https://www.</span><span class=\"ellipsis\">oodihelsinki.fi/en/visit-oodi-</span><span class=\"invisible\">in-vr/</span></a>"),
+            " <https://www.oodihelsinki.fi/en/visit-oodi-in-vr/> "
         );
     }
 
