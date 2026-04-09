@@ -10,8 +10,8 @@ use url::Url;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let start_toot = Url::parse(&std::env::args().nth(1).expect("Please provide a toot URL."))?;
-    let blogpost = mastodon::convert_thread(&start_toot).await?;
+    let first_toot_url = Url::parse(&std::env::args().nth(1).expect("Please provide a toot URL."))?;
+    let blogpost = mastodon::convert_thread(&first_toot_url).await?;
 
     println!("{}", blogpost.markdown);
 
@@ -24,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
         .try_for_each_concurrent(8, |Download { url, filename }| async move {
             if !PathBuf::from(&filename).exists() {
                 println!("Downloading {:?}...", filename);
-                let bytes = reqwest::get(url.as_str()).await?.bytes().await?;
+                let bytes = reqwest::get(url).await?.bytes().await?;
                 std::fs::write(&filename, bytes)?;
             }
             Ok::<_, anyhow::Error>(())
@@ -152,7 +152,9 @@ mod mastodon {
     use megalodon::entities::status::Status;
     use url::Url;
 
-    fn init_client(domain: &str) -> Result<Box<dyn megalodon::Megalodon + Send + Sync>> {
+    type Client = Box<dyn megalodon::Megalodon + Send + Sync>;
+
+    fn init_client(domain: &str) -> Result<Client> {
         let access_token = std::env::var("ACCESS_TOKEN").ok();
         megalodon::generator(
             megalodon::SNS::Mastodon,
@@ -163,35 +165,63 @@ mod mastodon {
         .context("Failed to initialize Mastodon API client")
     }
 
-    pub async fn convert_thread(start_toot: &Url) -> anyhow::Result<Blogpost> {
-        let client = init_client(&start_toot.origin().ascii_serialization())?;
+    pub async fn convert_thread(first_toot_url: &Url) -> anyhow::Result<Blogpost> {
+        let client = init_client(&first_toot_url.origin().ascii_serialization())?;
 
         let mut markdown = String::new();
 
-        let id = start_toot
+        let id = first_toot_url
             .path_segments()
             .unwrap()
             .next_back()
             .unwrap()
             .to_string();
-        let toot = client.get_status(id.clone()).await?.json();
+        let first_toot = client.get_status(id.clone()).await?.json();
 
         // Add the metadata we have.
         markdown += "---\n";
         markdown += "title: TODO\n";
         markdown += "tags: TODO\n";
-        markdown += format!("published: {}\n", toot.created_at.format("%Y-%m-%d")).as_str();
-        markdown += format!("toot: {}\n", start_toot).as_str();
+        markdown += &format!("published: {}\n", first_toot.created_at.format("%Y-%m-%d"));
+        markdown += &format!("toot: {}\n", first_toot_url);
         markdown += "---\n\n";
 
-        let first_toot: Blogpost = (&toot).try_into()?;
-        markdown += &first_toot.markdown;
-        let mut files = first_toot.downloads;
+        // Collect toots of thread.
+        let toots = collect_thread(&client, first_toot).await?;
 
-        let account = toot.account;
+        let mut downloads = vec![];
+        for toot in toots {
+            let toot: Blogpost = (&toot).try_into()?;
+            markdown += "\n\n---\n\n";
+            markdown += &toot.markdown;
+            downloads.extend(toot.downloads);
+        }
 
-        let context = client.get_status_context(id, None).await?.json();
+        // Collapse more than one empty line.
+        let re = regex::Regex::new(r"\n\n\n+").unwrap();
+        markdown = re.replace_all(&markdown, "\n\n").to_string();
 
+        // Remove empty lines at the end of the file.
+        markdown = markdown.trim_end().to_string() + "\n";
+
+        // Add reference to the source toot.
+        markdown += &format!(
+            "\n---\n\nThis post has been adapted from [this Mastodon thread]({first_toot_url}).\n"
+        );
+
+        Ok(Blogpost {
+            markdown,
+            downloads,
+        })
+    }
+
+    async fn collect_thread(client: &Client, first_toot: Status) -> Result<Vec<Status>> {
+        let account = first_toot.account.clone();
+        let context = client
+            .get_status_context(first_toot.id.clone(), None)
+            .await?
+            .json();
+        let mut toots = vec![first_toot];
         for toot in context.descendants {
             // Skip replies from other users.
             if toot.account != account {
@@ -204,30 +234,10 @@ mod mastodon {
                     continue;
                 }
             }
-
-            let toot: Blogpost = (&toot).try_into()?;
-            markdown += "\n\n---\n\n";
-            markdown += &toot.markdown;
-            files.extend(toot.downloads);
+            toots.push(toot);
         }
 
-        // Collapse more than one empty line.
-        let re = regex::Regex::new(r"\n\n\n+").unwrap();
-        markdown = re.replace_all(&markdown, "\n\n").to_string();
-
-        // Remove empty lines at the end of the file.
-        markdown = markdown.trim_end().to_string() + "\n";
-
-        // Add reference to the source toot.
-        markdown += format!(
-            "\n---\n\nThis post has been adapted from [this Mastodon thread]({start_toot}).\n"
-        )
-        .as_str();
-
-        Ok(Blogpost {
-            markdown,
-            downloads: files,
-        })
+        Ok(toots)
     }
 
     impl TryFrom<&Status> for Blogpost {
