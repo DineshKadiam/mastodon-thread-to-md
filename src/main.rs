@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::path::PathBuf;
+
 use blogpost::File;
 use futures::{stream, StreamExt, TryStreamExt};
 use url::Url;
@@ -20,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     stream::iter(blogpost.files)
         .map(Ok) // make it a TryStream
         .try_for_each_concurrent(8, |File { url, filename }| async move {
-            if !filename.exists() {
+            if !PathBuf::from(&filename).exists() {
                 println!("Downloading {:?}...", filename);
                 let bytes = reqwest::get(url.as_str()).await?.bytes().await?;
                 std::fs::write(&filename, bytes)?;
@@ -33,7 +35,6 @@ async fn main() -> anyhow::Result<()> {
 }
 
 mod blogpost {
-    use std::path::PathBuf;
     use url::Url;
 
     #[derive(Debug)]
@@ -46,15 +47,109 @@ mod blogpost {
     #[derive(Debug)]
     pub struct File {
         pub url: Url,
-        pub filename: PathBuf,
+        pub filename: String,
+    }
+}
+
+mod markdown {
+    pub struct Attachment {
+        pub filename: String,
+        pub description: Option<String>,
+    }
+
+    impl Attachment {
+        pub fn to_markdown(&self) -> String {
+            let description = self.description.clone().map(|d| {
+                d.replace("\n", "")
+                    .replace("\"", "&quot;") // This text will end up in contexts where it will be quoted with ".
+                    .replace("_", "&lowbar;") // Avoid markdown parsers picking up the _ pair in ![_](img.png "_").
+            });
+            let alt_text = description.clone();
+
+            // Avoid markdown parsers picking up a formula in ![$$](img.png "$$").
+            let description = description.map(|d| d.replace("$$", "\\$$"));
+
+            if self.filename.ends_with(".mp4") {
+                let description = match description {
+                    None => "".to_string(),
+                    Some(text) => format!(" aria-label=\"{text}\""),
+                };
+
+                format!(
+                    "<video src=\"{0}\" controls{1}></video>",
+                    self.filename, description,
+                )
+            } else {
+                let description = match description {
+                    None => "".to_string(),
+                    Some(text) => text,
+                };
+
+                let alt_text = match alt_text {
+                    None => "".to_string(),
+                    Some(text) => format!(" \"{text}\""),
+                };
+
+                format!("![{0}]({1}{2})", description, self.filename, alt_text,)
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn image_attachment() {
+            assert_eq!(
+                Attachment {
+                    filename: "cat.jpg".to_string(),
+                    description: Some("A cute cat.".to_string()),
+                }
+                .to_markdown(),
+                r#"![A cute cat.](cat.jpg "A cute cat.")"#.to_string()
+            );
+
+            assert_eq!(
+                Attachment {
+                    filename: "cat.jpg".to_string(),
+                    description: None,
+                }
+                .to_markdown(),
+                r#"![](cat.jpg)"#.to_string()
+            );
+        }
+
+        #[test]
+        fn video_attachment() {
+            assert_eq!(
+                Attachment {
+                    filename: "cat.mp4".to_string(),
+                    description: Some("A cute cat.".to_string()),
+                }
+                .to_markdown(),
+                r#"<video src="cat.mp4" controls aria-label="A cute cat."></video>"#.to_string()
+            );
+
+            assert_eq!(
+                Attachment {
+                    filename: "cat.mp4".to_string(),
+                    description: None,
+                }
+                .to_markdown(),
+                r#"<video src="cat.mp4" controls></video>"#.to_string()
+            );
+        }
     }
 }
 
 mod mastodon {
-    use crate::blogpost::{Blogpost, File};
+    use crate::{
+        blogpost::{Blogpost, File},
+        markdown,
+    };
     use anyhow::{Context, Result};
     use megalodon::entities::status::Status;
-    use std::path::PathBuf;
     use url::Url;
 
     fn init_client(domain: &str) -> Result<Box<dyn megalodon::Megalodon + Send + Sync>> {
@@ -144,70 +239,34 @@ mod mastodon {
 
         let mut files = vec![];
         for attachment in &status.media_attachments {
-            let filename = filename_for(&Url::parse(&attachment.url)?);
-
-            let description = attachment.description.clone().map(|d| {
-                d.replace("\n", "")
-                    .replace("\"", "&quot;") // This text will end up in contexts where it will be quoted with ".
-                    .replace("_", "&lowbar;") // Avoid markdown parsers picking up the _ pair in ![_](img.png "_").
-            });
-            let alt_text = description.clone();
-
-            // Avoid markdown parsers picking up a formula in ![$$](img.png "$$").
-            let description = description.map(|d| d.replace("$$", "\\$$"));
-
-            if filename.to_str().unwrap().ends_with(".mp4") {
-                let description = match description {
-                    None => "".to_string(),
-                    Some(text) => format!(" aria-label=\"{text}\""),
-                };
-
-                markdown += &format!(
-                    "\n\n<video src=\"{0}\" controls{1}></video>",
-                    filename.to_str().unwrap(),
-                    description,
-                );
-            } else {
-                let description = match description {
-                    None => "".to_string(),
-                    Some(text) => text,
-                };
-
-                let alt_text = match alt_text {
-                    None => "".to_string(),
-                    Some(text) => format!(" \"{text}\""),
-                };
-
-                markdown += &format!(
-                    "\n\n![{0}]({1}{2})",
-                    description,
-                    filename.to_str().unwrap(),
-                    alt_text,
-                );
-            }
+            let url = Url::parse(&attachment.url)?;
+            let filename = filename_for(&url);
 
             files.push(File {
-                url: Url::parse(&attachment.url)?,
-                filename,
+                url: url.clone(),
+                filename: filename.clone(),
             });
+
+            let attachment = markdown::Attachment {
+                filename,
+                description: attachment.description.clone(),
+            };
+
+            markdown += "\n\n";
+            markdown += attachment.to_markdown().as_str();
         }
 
         Ok(Blogpost { markdown, files })
     }
 
-    fn filename_for(url: &Url) -> PathBuf {
-        let mut filename = PathBuf::from(
-            url.path_segments()
-                .unwrap()
-                .next_back()
-                .unwrap()
-                .to_string(),
-        );
-        let extension = filename.extension().unwrap().to_str().unwrap();
-        if extension == "jpeg" {
-            filename.set_extension("jpg");
-        }
-        filename
+    fn filename_for(url: &Url) -> String {
+        let filename = url
+            .path_segments()
+            .unwrap()
+            .next_back()
+            .unwrap()
+            .to_string();
+        filename.replace(".jpeg", ".jpg")
     }
 
     #[cfg(test)]
@@ -218,11 +277,11 @@ mod mastodon {
         fn correct_filename() {
             assert_eq!(
                 filename_for(&Url::parse("https://example.com/image.png").unwrap()),
-                PathBuf::from("image.png")
+                "image.png".to_string()
             );
             assert_eq!(
                 filename_for(&Url::parse("https://example.com/image.jpeg").unwrap()),
-                PathBuf::from("image.jpg")
+                "image.jpg".to_string()
             );
         }
     }
