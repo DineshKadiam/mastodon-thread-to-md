@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
         .map(Ok) // make it a TryStream
         .try_for_each_concurrent(8, |Download { url, filename }| async move {
             if !PathBuf::from(&filename).exists() {
-                println!("Downloading {:?}...", filename);
+                println!("Downloading {filename}...");
                 let bytes = reqwest::get(url).await?.bytes().await?;
                 std::fs::write(&filename, bytes)?;
             }
@@ -52,6 +52,8 @@ mod blogpost {
 }
 
 mod markdown {
+    use std::path::Path;
+
     pub struct Attachment {
         pub filename: String,
         pub description: Option<String>,
@@ -60,35 +62,30 @@ mod markdown {
     impl Attachment {
         pub fn to_markdown(&self) -> String {
             let description = self.description.clone().map(|d| {
-                d.replace("\n", "")
-                    .replace("\"", "&quot;") // This text will end up in contexts where it will be quoted with ".
-                    .replace("_", "&lowbar;") // Avoid markdown parsers picking up the _ pair in ![_](img.png "_").
+                d.replace('\n', "")
+                    .replace('"', "&quot;") // This text will end up in contexts where it will be quoted with ".
+                    .replace('_', "&lowbar;") // Avoid markdown parsers picking up the _ pair in ![_](img.png "_").
             });
             let alt_text = description.clone();
 
             // Avoid markdown parsers picking up a formula in ![$$](img.png "$$").
             let description = description.map(|d| d.replace("$$", "\\$$"));
 
-            if self.filename.ends_with(".mp4") {
-                let description = match description {
-                    None => "".to_string(),
-                    Some(text) => format!(" aria-label=\"{text}\""),
-                };
+            if Path::new(&self.filename)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("mp4"))
+            {
+                let description =
+                    description.map_or_else(String::new, |text| format!(" aria-label=\"{text}\""));
 
                 format!(
                     "<video src=\"{0}\" controls{1}></video>",
                     self.filename, description,
                 )
             } else {
-                let description = match description {
-                    None => "".to_string(),
-                    Some(text) => text,
-                };
+                let description = description.unwrap_or_default();
 
-                let alt_text = match alt_text {
-                    None => "".to_string(),
-                    Some(text) => format!(" \"{text}\""),
-                };
+                let alt_text = alt_text.map_or_else(String::new, |text| format!(" \"{text}\""));
 
                 format!("![{0}]({1}{2})", description, self.filename, alt_text,)
             }
@@ -116,7 +113,7 @@ mod markdown {
                     description: None,
                 }
                 .to_markdown(),
-                r#"![](cat.jpg)"#.to_string()
+                "![](cat.jpg)".to_string()
             );
         }
 
@@ -144,6 +141,8 @@ mod markdown {
 }
 
 mod mastodon {
+    use std::fmt::Write as _;
+
     use crate::{
         blogpost::{Blogpost, Download},
         markdown,
@@ -182,8 +181,12 @@ mod mastodon {
         markdown += "---\n";
         markdown += "title: TODO\n";
         markdown += "tags: TODO\n";
-        markdown += &format!("published: {}\n", first_toot.created_at.format("%Y-%m-%d"));
-        markdown += &format!("toot: {}\n", first_toot_url);
+        writeln!(
+            markdown,
+            "published: {}",
+            first_toot.created_at.format("%Y-%m-%d")
+        )?;
+        writeln!(markdown, "toot: {first_toot_url}")?;
         markdown += "---\n\n";
 
         // Collect toots of thread.
@@ -205,9 +208,10 @@ mod mastodon {
         markdown = markdown.trim_end().to_string() + "\n";
 
         // Add reference to the source toot.
-        markdown += &format!(
-            "\n---\n\nThis post has been adapted from [this Mastodon thread]({first_toot_url}).\n"
-        );
+        writeln!(
+            markdown,
+            "\n---\n\nThis post has been adapted from [this Mastodon thread]({first_toot_url})."
+        )?;
 
         Ok(Blogpost {
             markdown,
@@ -243,7 +247,7 @@ mod mastodon {
     impl TryFrom<&Status> for Blogpost {
         type Error = anyhow::Error;
 
-        fn try_from(status: &Status) -> Result<Blogpost> {
+        fn try_from(status: &Status) -> Result<Self> {
             let mut markdown = mdka::from_html(&status.content);
 
             // Fix spaces after @ characters.
@@ -274,7 +278,7 @@ mod mastodon {
                 markdown += &attachment.to_markdown();
             }
 
-            Ok(Blogpost {
+            Ok(Self {
                 markdown,
                 downloads,
             })

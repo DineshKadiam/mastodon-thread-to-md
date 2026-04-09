@@ -18,3 +18,7 @@ regex = "1.10.6"
 reqwest = { version = "0.13.0", features = ["rustls"] }
 tokio = "1.39.3"
 url = "2.5.2"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
