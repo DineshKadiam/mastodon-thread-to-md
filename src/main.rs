@@ -209,4 +209,21 @@ mod mastodon {
         }
         filename
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn correct_filename() {
+            assert_eq!(
+                filename_for(&Url::parse("https://example.com/image.png").unwrap()),
+                PathBuf::from("image.png")
+            );
+            assert_eq!(
+                filename_for(&Url::parse("https://example.com/image.jpeg").unwrap()),
+                PathBuf::from("image.jpg")
+            );
+        }
+    }
 }
