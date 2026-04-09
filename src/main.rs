@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use blogpost::File;
 use futures::{stream, StreamExt, TryStreamExt};
 use url::Url;
 
@@ -18,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     // Download the files, if they don't exist yet.
     stream::iter(blogpost.files)
         .map(Ok) // make it a TryStream
-        .try_for_each_concurrent(8, |(url, filename)| async move {
+        .try_for_each_concurrent(8, |File { url, filename }| async move {
             if !filename.exists() {
                 println!("Downloading {:?}...", filename);
                 let bytes = reqwest::get(url.as_str()).await?.bytes().await?;
@@ -39,12 +40,18 @@ mod blogpost {
     pub struct Blogpost {
         pub markdown: String,
         // URL and target filename.
-        pub files: Vec<(Url, PathBuf)>,
+        pub files: Vec<File>,
+    }
+
+    #[derive(Debug)]
+    pub struct File {
+        pub url: Url,
+        pub filename: PathBuf,
     }
 }
 
 mod mastodon {
-    use crate::blogpost::Blogpost;
+    use crate::blogpost::{Blogpost, File};
     use anyhow::{Context, Result};
     use megalodon::entities::status::Status;
     use std::path::PathBuf;
@@ -179,7 +186,10 @@ mod mastodon {
                 );
             }
 
-            files.push((Url::parse(&attachment.url)?, filename));
+            files.push(File {
+                url: Url::parse(&attachment.url)?,
+                filename,
+            });
         }
 
         Ok(Blogpost { markdown, files })
