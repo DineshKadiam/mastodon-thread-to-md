@@ -141,7 +141,7 @@ mod markdown {
 }
 
 mod mastodon {
-    use std::fmt::Write as _;
+    use std::{collections::HashMap, fmt::Write as _};
 
     use crate::{
         blogpost::{Blogpost, Download},
@@ -178,15 +178,19 @@ mod mastodon {
         let first_toot = client.get_status(id.clone()).await?.json();
 
         // Add the metadata we have.
+        let mut metadata: HashMap<String, String> = HashMap::new();
+        metadata.insert("title".to_string(), "TODO".to_string());
+        metadata.insert("tags".to_string(), "TODO".to_string());
+        metadata.insert(
+            "published".to_string(),
+            first_toot.created_at.format("%Y-%m-%d").to_string(),
+        );
+        metadata.insert("toot".to_string(), first_toot_url.to_string());
+
         markdown += "---\n";
-        markdown += "title: TODO\n";
-        markdown += "tags: TODO\n";
-        writeln!(
-            markdown,
-            "published: {}",
-            first_toot.created_at.format("%Y-%m-%d")
-        )?;
-        writeln!(markdown, "toot: {first_toot_url}")?;
+        for (key, value) in metadata {
+            writeln!(markdown, "{key}: {value}")?;
+        }
         markdown += "---\n\n";
 
         // Collect toots of thread.
