@@ -11,7 +11,7 @@ use markdown::Download;
 async fn main() -> anyhow::Result<()> {
     let first_toot_url = std::env::args().nth(1).expect("Please provide a toot URL.");
     let thread = mastodon::fetch_thread(&first_toot_url).await?;
-    let blogpost: markdown::Blogpost = thread.try_into()?;
+    let blogpost: markdown::Blogpost = thread.into();
 
     println!("{}", blogpost.markdown);
 
@@ -37,9 +37,8 @@ async fn main() -> anyhow::Result<()> {
 // Conversions into Markdown.
 mod markdown {
     use crate::mastodon;
-    use anyhow::Result;
     use std::fmt::Write as _;
-    use std::{collections::HashMap, path::Path};
+    use std::path::Path;
     use url::Url;
 
     #[derive(Debug)]
@@ -60,38 +59,29 @@ mod markdown {
         pub description: Option<String>,
     }
 
-    impl TryFrom<mastodon::Thread> for Blogpost {
-        type Error = anyhow::Error;
-
-        fn try_from(thread: mastodon::Thread) -> Result<Self> {
+    impl From<mastodon::Thread> for Blogpost {
+        fn from(thread: mastodon::Thread) -> Self {
             let mut markdown = String::new();
 
             // Add the metadata we have.
-            let mut metadata: HashMap<String, String> = HashMap::new();
-            metadata.insert("title".to_string(), "TODO".to_string());
-            metadata.insert("tags".to_string(), "TODO".to_string());
-            metadata.insert(
-                "published".to_string(),
-                thread.published.format("%Y-%m-%d").to_string(),
-            );
-            metadata.insert("toot".to_string(), thread.toot_url.clone());
-
             markdown += "---\n";
-            for (key, value) in metadata {
-                writeln!(markdown, "{key}: {value}")?;
-            }
+            markdown += "title: TODO\n";
+            markdown += "tags: TODO\n";
+            markdown += format!("published: {}\n", thread.published.format("%Y-%m-%d")).as_str();
+            markdown += format!("toot: {}\n", thread.toot_url).as_str();
             markdown += "---\n\n";
 
             let mut downloads = vec![];
             for toot in &thread.toots {
-                let toot: Self = toot.try_into()?;
-                markdown += "\n\n---\n\n";
+                let toot: Self = toot.into();
                 markdown += &toot.markdown;
+                markdown += "\n\n---\n\n";
                 downloads.extend(toot.downloads);
             }
 
             // Collapse more than one empty line.
-            let re = regex::Regex::new(r"\n\n\n+").unwrap();
+            let re =
+                regex::Regex::new(r"\n\n\n+").expect("Should be able to construct newline regex");
             markdown = re.replace_all(&markdown, "\n\n").to_string();
 
             // Remove empty lines at the end of the file.
@@ -100,21 +90,20 @@ mod markdown {
             // Add reference to the source toot.
             writeln!(
                 markdown,
-                "\n---\n\nThis post has been adapted from [this Mastodon thread]({}).",
+                "This post has been adapted from [this Mastodon thread]({}).",
                 thread.toot_url
-            )?;
+            )
+            .expect("Appending to the markdown string should work");
 
-            Ok(Self {
+            Self {
                 markdown,
                 downloads,
-            })
+            }
         }
     }
 
-    impl TryFrom<&mastodon::Toot> for Blogpost {
-        type Error = anyhow::Error;
-
-        fn try_from(toot: &mastodon::Toot) -> Result<Self> {
+    impl From<&mastodon::Toot> for Blogpost {
+        fn from(toot: &mastodon::Toot) -> Self {
             let mut markdown = mdka::from_html(&toot.html);
 
             // Fix spaces after @ characters.
@@ -145,10 +134,10 @@ mod markdown {
                 markdown += &attachment.to_markdown();
             }
 
-            Ok(Self {
+            Self {
                 markdown,
                 downloads,
-            })
+            }
         }
     }
 
