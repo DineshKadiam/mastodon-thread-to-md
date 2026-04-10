@@ -61,7 +61,9 @@ impl Client {
         let access_token = std::env::var("ACCESS_TOKEN").ok();
 
         if access_token.is_none() {
-            println!("Note: Thread might be cut off due to Mastodon's API limits. Provide an ACCESS_TOKEN via environment variable to make authenticated requests.");
+            println!(
+                "Note: Thread might be cut off due to Mastodon's API limits. Provide an ACCESS_TOKEN via environment variable to make authenticated requests."
+            );
         }
 
         let megalodon = megalodon::generator(
@@ -94,10 +96,10 @@ impl Client {
             }
 
             // Skip replies to other people.
-            if let Some(ref reply_to_account_id) = toot.in_reply_to_account_id {
-                if reply_to_account_id != &account.id {
-                    continue;
-                }
+            if let Some(ref reply_to_account_id) = toot.in_reply_to_account_id
+                && reply_to_account_id != &account.id
+            {
+                continue;
             }
             toots.push(toot);
         }
