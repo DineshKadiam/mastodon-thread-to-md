@@ -798,21 +798,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mastodon-to-blogpost"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "futures",
- "mdka",
- "megalodon",
- "regex",
- "reqwest 0.13.2",
- "tokio",
- "url",
-]
-
-[[package]]
 name = "mdka"
 version = "1.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1750,6 +1735,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "threadcat"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "futures",
+ "mdka",
+ "megalodon",
+ "regex",
+ "reqwest 0.13.2",
+ "tokio",
+ "url",
 ]
 
 [[package]]

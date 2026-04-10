@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     println!("Fetching thread...");
     let thread = mastodon::fetch_thread(&first_toot_url).await?;
 
-    println!("Downloaded {} toots.", thread.toots.len());
+    println!("Found {} toots.", thread.toots.len());
 
     let blogpost: markdown::Blogpost = thread.into();
 
@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     let duration = start.elapsed();
-    println!("Completed in {:.2} s!", duration.as_secs_f64());
+    println!("Completed in {:.2} s! 🧶🐱", duration.as_secs_f64());
 
     Ok(())
 }

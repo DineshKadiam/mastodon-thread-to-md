@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 blinry <mail@blinry.org>
 SPDX-License-Identifier: CC-BY-SA-4.0
 -->
 
-# mastodon-to-blogpost
+# threadcat 🧶🐱
 
 Takes the URL to a Mastodon toot, and converts the thread (all children by the same author) to a Markdown blogpost. It also downloads all included media files, and includes their alt text.
 
@@ -15,12 +15,12 @@ You'll need Rust's `cargo` command. Then, clone this repo, and run this command 
 ```
 $ cargo run --release https://example.com/@user/12345678987654321
 Fetching thread...
-Downloaded 13 toots.
+Found 13 toots.
 Writing index.md...
 Downloading 4fccc6671b254665.jpg...
 Downloading 34dbf96666113346.jpg...
 Downloading 8599bd70f4d23ba6.jpg...
-Completed in 1.09 s!
+Completed in 1.09 s! 🧶🐱
 ```
 
 ## API limits
