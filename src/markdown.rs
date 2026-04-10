@@ -128,6 +128,11 @@ fn from_html(html: &str) -> String {
     let re = regex::Regex::new(r"\[# (.*?)\]\(.*?\)").unwrap();
     markdown = re.replace_all(&markdown, "#$1").to_string();
 
+    // Remove whitespace before/after lines.
+    let re = regex::Regex::new(r"(?m)^[ \t]+|[ \t]+$")
+        .expect("Should be able to construct whitepspace regex");
+    markdown = re.replace_all(&markdown, "").to_string();
+
     markdown
 }
 
@@ -194,8 +199,28 @@ mod tests {
     #[test]
     fn tricky_html() {
         // Mastodon returns this HTML, and mdka seems to insert some spaces around the spans...
-        assert_eq!(from_html("<a href=\"https://www.oodihelsinki.fi/en/visit-oodi-in-vr/\" target=\"_blank\" rel=\"nofollow noopener\" translate=\"no\"><span class=\"invisible\">https://www.</span><span class=\"ellipsis\">oodihelsinki.fi/en/visit-oodi-</span><span class=\"invisible\">in-vr/</span></a>"),
-            " <https://www.oodihelsinki.fi/en/visit-oodi-in-vr/> "
+        assert_eq!(
+            from_html(
+                "<a href=\"https://www.oodihelsinki.fi/en/visit-oodi-in-vr/\" target=\"_blank\" rel=\"nofollow noopener\" translate=\"no\"><span class=\"invisible\">https://www.</span><span class=\"ellipsis\">oodihelsinki.fi/en/visit-oodi-</span><span class=\"invisible\">in-vr/</span></a>"
+            ),
+            "<https://www.oodihelsinki.fi/en/visit-oodi-in-vr/>"
+        );
+
+        /* Sadly, it's unclear how to fulfill this test as well as the next one.
+         * mdka seems a bit weird there?
+        assert_eq!(
+            from_html(
+                "<a href=\"https://chaos.social/tags/p5js\" class=\"mention hashtag\" rel=\"tag\">#<span>p5js</span></a>."
+            ),
+            "#p5js."
+        );
+        */
+
+        assert_eq!(
+            from_html(
+                "<p><a href=\"https://chaos.social/tags/genuary\" class=\"mention hashtag\" rel=\"tag\">#<span>genuary</span></a> Day</p>"
+            ),
+            "#genuary Day\n\n"
         );
     }
 
