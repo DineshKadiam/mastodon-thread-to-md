@@ -19,6 +19,8 @@ async fn main() -> anyhow::Result<()> {
     println!("Fetching thread...");
     let thread = mastodon::fetch_thread(&first_toot_url).await?;
 
+    println!("Downloaded {} toots.", thread.toots.len());
+
     let blogpost: markdown::Blogpost = thread.into();
 
     // Write to index.md.

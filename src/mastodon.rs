@@ -59,6 +59,11 @@ struct Client {
 impl Client {
     fn new(domain: &str) -> Result<Self> {
         let access_token = std::env::var("ACCESS_TOKEN").ok();
+
+        if access_token.is_none() {
+            println!("Note: Thread might be cut off due to Mastodon's API limits. Provide an ACCESS_TOKEN via environment variable to make authenticated requests.");
+        }
+
         let megalodon = megalodon::generator(
             megalodon::SNS::Mastodon,
             String::from(domain),
