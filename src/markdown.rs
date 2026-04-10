@@ -9,21 +9,19 @@ use std::fmt::Write as _;
 use std::path::Path;
 use url::Url;
 
-/// Contains information on what to put in a directory to have a blog post!
-#[derive(Debug)]
+/// Contains all information on how to build the blog post.
 pub struct Blogpost {
     pub markdown: String,
     pub downloads: Vec<Download>,
 }
 
 /// Represents a file that needs to be downloaded.
-#[derive(Debug)]
 pub struct Download {
     pub url: String,
     pub filename: String,
 }
 
-/// Represents an attachment, used internally.
+/// Represents an attachment; used internally.
 struct Attachment {
     filename: String,
     description: Option<String>,
@@ -33,7 +31,7 @@ impl From<mastodon::Thread> for Blogpost {
     fn from(thread: mastodon::Thread) -> Self {
         let mut markdown = String::new();
 
-        // Add the metadata we have.
+        // Add some metadata as YAML frontmatter.
         markdown += "---\n";
         markdown += "title: TODO\n";
         markdown += "tags: TODO\n";
@@ -127,8 +125,7 @@ fn from_html(html: &str) -> String {
         .to_string();
 
     // Remove links to hashtags.
-    let re =
-        regex::Regex::new(r"\[# (.*?)\]\(.*?\)").expect("The link-parsing regex should compile");
+    let re = regex::Regex::new(r"\[# (.*?)\]\(.*?\)").unwrap();
     markdown = re.replace_all(&markdown, "#$1").to_string();
 
     markdown

@@ -12,13 +12,14 @@ mod mastodon;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let first_toot_url = std::env::args().nth(1).expect("Please provide a toot URL.");
+
+    println!("Fetching thread...");
     let thread = mastodon::fetch_thread(&first_toot_url).await?;
-    dbg!(&thread);
+
     let blogpost: markdown::Blogpost = thread.into();
 
-    println!("{}", blogpost.markdown);
-
     // Write to index.md.
+    println!("Writing index.md...");
     std::fs::write("index.md", blogpost.markdown)?;
 
     // Download the files, if they don't exist yet, in parallel.
