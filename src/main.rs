@@ -5,12 +5,15 @@
 use futures::{stream, StreamExt, TryStreamExt};
 use markdown::Download;
 use std::path::PathBuf;
+use std::time::Instant;
 
 mod markdown;
 mod mastodon;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let start = Instant::now();
+
     let first_toot_url = std::env::args().nth(1).expect("Please provide a toot URL.");
 
     println!("Fetching thread...");
@@ -34,6 +37,9 @@ async fn main() -> anyhow::Result<()> {
             Ok::<_, anyhow::Error>(())
         })
         .await?;
+
+    let duration = start.elapsed();
+    println!("Completed in {:.2} s!", duration.as_secs_f64());
 
     Ok(())
 }
