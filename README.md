@@ -8,12 +8,18 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 Takes the URL to a Mastodon toot, and converts the thread (all children by the same author) to a Markdown blogpost. It also downloads all included media files, and includes their alt text.
 
-## Usage
+## Installation
 
-You'll need Rust's `cargo` command. Then, clone this repo, and run this command in it:
+You'll need Rust's `cargo` command:
 
 ```
-$ cargo run --release https://example.com/@user/12345678987654321
+cargo install threadcat
+```
+
+## Usage
+
+```
+$ threadcat https://example.com/@user/12345678987654321
 Fetching thread...
 Found 13 toots.
 Writing index.md...
