@@ -6,11 +6,11 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # threadcat 🧶🐱
 
-Takes the URL to a Mastodon toot, and converts the thread (all children by the same author) to a Markdown blogpost. It also downloads all included media files, and includes their alt text.
+Takes the URL to a Mastodon toot, and converts the thread (all children by the same author) to a Markdown blogpost. It also downloads all included media files, and their alt texts.
 
 ## Installation
 
-You'll need Rust's `cargo` command:
+You'll need Rust's `cargo` command. Then run:
 
 ```
 cargo install threadcat
