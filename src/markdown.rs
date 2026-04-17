@@ -57,7 +57,7 @@ impl From<mastodon::Thread> for Blogpost {
         // Add reference to the source toot.
         writeln!(
             markdown,
-            "This post has been adapted from [this Mastodon thread]({}).",
+            "\nThis post has been adapted from [this Mastodon thread]({}).",
             thread.toot_url
         )
         .expect("Appending to the markdown string should work");
