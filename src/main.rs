@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use clap::Parser;
 use futures::{StreamExt, TryStreamExt, stream};
 use markdown::Download;
 use std::path::PathBuf;
@@ -10,14 +11,21 @@ use std::time::Instant;
 mod markdown;
 mod mastodon;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// URL of the first toot of a Mastodon thread.
+    url: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let start = Instant::now();
 
-    let first_toot_url = std::env::args().nth(1).expect("Please provide a toot URL.");
+    let args = Args::parse();
 
     println!("Fetching thread...");
-    let thread = mastodon::fetch_thread(&first_toot_url).await?;
+    let thread = mastodon::fetch_thread(&args.url).await?;
 
     println!("Found {} toots.", thread.toots.len());
 
