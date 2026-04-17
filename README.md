@@ -36,7 +36,7 @@ Mastodon's default API limit is a maximum thread length of 40. You can increase 
 Generate one in the Mastodon settings, under "Development". Give it "read" permissions. Then, run
 
 ```bash
-export ACCESS_TOKEN="<your access token>"
+export MASTODON_ACCESS_TOKEN="<your access token>"
 ```
 
 You can also put this line in an `.envrc` file, and activate it using [direnv](https://github.com/direnv/direnv).
