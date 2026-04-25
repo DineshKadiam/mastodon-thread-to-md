@@ -164,7 +164,7 @@ impl Attachment {
 
             let alt_text = alt_text.map_or_else(String::new, |text| format!(" \"{text}\""));
 
-            format!("![{0}]({1}{2})", description, self.filename, alt_text,)
+            format!("![{0}]({1}{2})", description, self.filename, alt_text)
         }
     }
 }
