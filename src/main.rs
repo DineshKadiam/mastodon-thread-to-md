@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use anyhow::Result;
 use clap::Parser;
 use futures::{StreamExt, TryStreamExt, stream};
 use markdown::Download;
@@ -23,7 +24,7 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     let start = Instant::now();
 
     let args = Args::parse();
@@ -35,17 +36,26 @@ async fn main() -> anyhow::Result<()> {
 
     let blogpost: markdown::Blogpost = thread.into();
 
+    // Write to Markdown file.
+    println!("Writing {}...", args.output.display());
+    std::fs::write(&args.output, &blogpost.markdown)?;
+
+    // Download the attachments, if they don't exist yet, in parallel.
+    download_attachments(&blogpost, &args).await?;
+
+    let duration = start.elapsed();
+    println!("Completed in {:.2} s! 🧶🐱", duration.as_secs_f64());
+
+    Ok(())
+}
+
+async fn download_attachments(blogpost: &markdown::Blogpost, args: &Args) -> Result<()> {
     let output_clone = args.output.clone();
     let base_dir = output_clone
         .parent()
         .expect("output path should have a base dir");
 
-    // Write to Markdown file.
-    println!("Writing {}...", args.output.display());
-    std::fs::write(args.output, blogpost.markdown)?;
-
-    // Download the files, if they don't exist yet, in parallel.
-    stream::iter(blogpost.downloads)
+    stream::iter(&blogpost.downloads)
         .map(Ok) // Convert to a TryStream.
         .try_for_each_concurrent(8, |Download { url, filename }| async move {
             let target_filename = base_dir.join(filename);
@@ -57,9 +67,6 @@ async fn main() -> anyhow::Result<()> {
             Ok::<_, anyhow::Error>(())
         })
         .await?;
-
-    let duration = start.elapsed();
-    println!("Completed in {:.2} s! 🧶🐱", duration.as_secs_f64());
 
     Ok(())
 }
