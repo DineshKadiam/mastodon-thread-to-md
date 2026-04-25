@@ -29,6 +29,12 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
+    assert!(
+        !args.output.exists(),
+        "{} exists, please remove it before running threadcat",
+        args.output.display()
+    );
+
     println!("Fetching thread...");
     let thread = mastodon::fetch_thread(&args.url).await?;
 
