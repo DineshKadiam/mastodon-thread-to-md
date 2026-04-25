@@ -16,6 +16,10 @@ mod mastodon;
 struct Args {
     /// URL of the first toot of a Mastodon thread.
     url: String,
+
+    /// File that the Markdown content should be written to.
+    #[arg(short, long, default_value = "index.md")]
+    output: PathBuf,
 }
 
 #[tokio::main]
@@ -31,18 +35,24 @@ async fn main() -> anyhow::Result<()> {
 
     let blogpost: markdown::Blogpost = thread.into();
 
-    // Write to index.md.
-    println!("Writing index.md...");
-    std::fs::write("index.md", blogpost.markdown)?;
+    let output_clone = args.output.clone();
+    let base_dir = output_clone
+        .parent()
+        .expect("output path should have a base dir");
+
+    // Write to Markdown file.
+    println!("Writing {}...", args.output.display());
+    std::fs::write(args.output, blogpost.markdown)?;
 
     // Download the files, if they don't exist yet, in parallel.
     stream::iter(blogpost.downloads)
         .map(Ok) // Convert to a TryStream.
         .try_for_each_concurrent(8, |Download { url, filename }| async move {
-            if !PathBuf::from(&filename).exists() {
-                println!("Downloading {filename}...");
+            let target_filename = base_dir.join(filename);
+            if !PathBuf::from(&target_filename).exists() {
+                println!("Downloading {}...", target_filename.display());
                 let bytes = reqwest::get(url).await?.bytes().await?;
-                std::fs::write(&filename, bytes)?;
+                std::fs::write(&target_filename, bytes)?;
             }
             Ok::<_, anyhow::Error>(())
         })
