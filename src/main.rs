@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use anyhow::Result;
 use clap::Parser;
+use color_eyre::{
+    Help, Result,
+    eyre::{Error, WrapErr, eyre},
+};
 use futures::{StreamExt, TryStreamExt, stream};
 use markdown::Download;
 use std::path::PathBuf;
@@ -27,16 +30,22 @@ struct Args {
 async fn main() -> Result<()> {
     let start = Instant::now();
 
+    color_eyre::install()?;
+
     let args = Args::parse();
 
-    assert!(
-        !args.output.exists(),
-        "{} exists, please remove it before running threadcat",
-        args.output.display()
-    );
+    if args.output.exists() {
+        return Err(eyre!(
+            "{} exists, refusing to overwrite",
+            args.output.display()
+        ))
+        .suggestion("Remove the file manually and try again");
+    }
 
     println!("Fetching thread...");
-    let thread = mastodon::fetch_thread(&args.url).await?;
+    let thread = mastodon::fetch_thread(&args.url)
+        .await
+        .wrap_err("Failed to fetch thread")?;
 
     println!("Found {} toots.", thread.toots.len());
 
@@ -44,10 +53,12 @@ async fn main() -> Result<()> {
 
     // Write to Markdown file.
     println!("Writing {}...", args.output.display());
-    std::fs::write(&args.output, &blogpost.markdown)?;
+    std::fs::write(&args.output, &blogpost.markdown).wrap_err("Failed to write Markdown file")?;
 
     // Download the attachments, if they don't exist yet, in parallel.
-    download_attachments(&blogpost, &args).await?;
+    download_attachments(&blogpost, &args)
+        .await
+        .wrap_err("Failed to download attachments")?;
 
     let duration = start.elapsed();
     println!("Completed in {:.2} s! 🧶🐱", duration.as_secs_f64());
@@ -59,7 +70,7 @@ async fn download_attachments(blogpost: &markdown::Blogpost, args: &Args) -> Res
     let output_clone = args.output.clone();
     let base_dir = output_clone
         .parent()
-        .expect("output path should have a base dir");
+        .expect("Output path should have a base dir");
 
     stream::iter(&blogpost.downloads)
         .map(Ok) // Convert to a TryStream.
@@ -67,10 +78,11 @@ async fn download_attachments(blogpost: &markdown::Blogpost, args: &Args) -> Res
             let target_filename = base_dir.join(filename);
             if !PathBuf::from(&target_filename).exists() {
                 println!("Downloading {}...", target_filename.display());
-                let bytes = reqwest::get(url).await?.bytes().await?;
-                std::fs::write(&target_filename, bytes)?;
+                let bytes = reqwest::get(url).await?.error_for_status()?.bytes().await?;
+                std::fs::write(&target_filename, bytes)
+                    .wrap_err(format!("Failed to write to {}", target_filename.display()))?;
             }
-            Ok::<_, anyhow::Error>(())
+            Ok::<_, Error>(())
         })
         .await?;
 

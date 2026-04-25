@@ -4,8 +4,8 @@
 
 //! Fetching data from Mastodon.
 
-use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
+use color_eyre::{Result, eyre::WrapErr};
 use megalodon::entities::status::Status;
 use url::Url;
 
@@ -31,8 +31,8 @@ pub struct Attachment {
     pub description: Option<String>,
 }
 
-pub async fn fetch_thread(first_toot_url: &str) -> anyhow::Result<Thread> {
-    let url = Url::parse(first_toot_url).expect("Urls should be valid");
+pub async fn fetch_thread(first_toot_url: &str) -> Result<Thread> {
+    let url = Url::parse(first_toot_url).wrap_err("Specified URL is not valid")?;
     let client = Client::new(&url.origin().ascii_serialization())?;
 
     let id = url
@@ -41,7 +41,12 @@ pub async fn fetch_thread(first_toot_url: &str) -> anyhow::Result<Thread> {
         .next_back()
         .unwrap()
         .to_string();
-    let first_toot = client.megalodon.get_status(id).await?.json();
+    let first_toot = client
+        .megalodon
+        .get_status(id)
+        .await
+        .wrap_err("Failed to download specified toot")?
+        .json();
 
     let megalodon_toots = client.toots_in_thread(first_toot.clone()).await?;
 
@@ -75,11 +80,9 @@ impl Client {
             access_token,
             None,
         )
-        .context("Failed to initialize Mastodon API client");
+        .wrap_err("Failed to initialize Mastodon API client")?;
 
-        Ok(Self {
-            megalodon: megalodon?,
-        })
+        Ok(Self { megalodon })
     }
 
     async fn toots_in_thread(&self, first_toot: Status) -> Result<Vec<Status>> {
@@ -87,7 +90,8 @@ impl Client {
         let context = self
             .megalodon
             .get_status_context(first_toot.id.clone(), None)
-            .await?
+            .await
+            .wrap_err("Failed to fetch replies to first toot")?
             .json();
 
         let mut toots = vec![first_toot];
