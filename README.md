@@ -1,3 +1,5 @@
+> Originally developed at [codeberg.org/blinry/threadcat](https://codeberg.org/blinry/threadcat) · GPL-3.0-or-later
+
 <!--
 SPDX-FileCopyrightText: 2026 blinry <mail@blinry.org>
 
